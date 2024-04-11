@@ -13,6 +13,13 @@ import re
 import sys
 import os
 
+SHOW_CHANGES = False
+FILES = []
+Y = 0
+SCROLL = 0
+MAX_WIDTH = 50
+MAX_HEIGHT = 30
+CURSOR_Y = Y
 
 console = Console()
 layout = Layout()
@@ -35,8 +42,6 @@ status_map = {
     ' D' : '[bright_red]-[/]',
     }
 
-FILES = []
-Y = 0
 
 def clamp(value, floor, ceiling):
     return max(min(value, ceiling), floor)
@@ -71,7 +76,10 @@ def get_status():
     FILES.sort(key=lambda x: x['modification_time'])
     file_view = ''
 
-    for i, e in enumerate(FILES):
+    scroll_indicator = ' ' * ((MAX_WIDTH // 2)+6-2) + '...\n'
+    file_view += scroll_indicator if SCROLL > 0 else '\n'
+
+    for i, e in enumerate(FILES[SCROLL:MAX_HEIGHT+SCROLL]):
         status, path, modification_time = e.values()
         # if status == 'R ':  # renamed
         #     path = Path(str(path).split(' -> ')[0])
@@ -84,30 +92,40 @@ def get_status():
         days = math.floor(duration_in_s / 86400)
         # hours = divmod(days[1], 3600)
         # staged_status = '\[[blue on white]staged][/]' + ' '*16 if path in staged_files else ''
-        staged_status = ' '*45 if (path in staged_files or (' -> ' in path.name and Path(path.name.split(' -> ')[1])) in staged_files) else ''
+        staged_status = '        [bold]' if (path in staged_files or (' -> ' in path.name and Path(path.name.split(' -> ')[1])) in staged_files) else ''
 
-        cursor = f'[white on blue]>' if len(FILES)-Y-1 == i else '[white on black] '
+        cursor = f'[white on blue]>' if Y == i+SCROLL else '[default on default not bold] '
 
-        file_view += f'{cursor}{staged_status} {status} {escape(str(path)) : <35} [grey50]{days}d[/]\n'
+        path_as_str = escape(str(path))
+        if len(path_as_str) > MAX_WIDTH:
+            path_as_str = '...' + path_as_str[-(MAX_WIDTH-3):]
+
+        file_view += f'{i+SCROLL} {cursor}{staged_status} {status} {path_as_str : <{MAX_WIDTH}} [grey50]{days}d[/]\n'
+
+    file_view += scroll_indicator if SCROLL+MAX_HEIGHT < len(FILES) else '\n'
     file_view += '\n[grey50 on black]\[w] up    \[s] down    \[d] stage    \[a] unstage    \[q] quit    \n'
 
     # layout['file_view'].update(file_view)
-    print(file_view)
+    print_at(f'| Y:{Y}/{len(FILES)-1} scroll:{SCROLL}\n', y=0)
+    print_at(file_view, y=2)
 
-    current_file = FILES[len(FILES)-Y-1]['path']
-    if current_file not in staged_files:
-        file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
-    else:
-        file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
 
-    file_changes = [l[:60] for l in file_changes.split('\n') if l.startswith('+') or l.startswith('-')]
-    diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green] + [/] ').replace('\n-','\n[black on bright_red] - [/] ')
-    # layout['changes'].update(diff))
+    current_file = FILES[Y]['path']
 
-    # print_at(diff, y=2, x=50)
-    # print_at('HWELLO WORLD', y=2, x=50)
-    for i, line in enumerate(diff.split('\n')[:40]):
-        print_at(line, y=i, x=80)
+    if SHOW_CHANGES:
+        if current_file not in staged_files:
+            file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
+        else:
+            file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
+
+        file_changes = [l[:60] for l in file_changes.split('\n') if l.startswith('+') or l.startswith('-')]
+        diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green] + [/] ').replace('\n-','\n[black on bright_red] - [/] ')
+        # layout['changes'].update(diff))
+
+        # print_at(diff, y=2, x=50)
+        # print_at('HWELLO WORLD', y=2, x=50)
+        for i, line in enumerate(diff.split('\n')[:40]):
+            print_at(line, y=i+1, x=80)
 
     # # layout['changes'].update('changes:\n' + str(path) + file_changes)
     # # console.print(Syntax(file_changes, 'python'))
@@ -125,7 +143,7 @@ def get_status():
 
 
 def stage(index):
-    file = str(FILES[len(FILES)-index-1]['path'])
+    file = str(FILES[index]['path'])
     if ' -> ' in file:
         file = file.split(' -> ')[1]
 
@@ -133,7 +151,7 @@ def stage(index):
     subprocess.run(['git', 'add', file])
 
 def unstage(index):
-    file = str(FILES[len(FILES)-index-1]['path'])
+    file = str(FILES[index]['path'])
     if ' -> ' in file:
         file = file.split(' -> ')[1]
     print('unstage file', file)
@@ -149,13 +167,22 @@ while True:
     elif choice:
         for char in choice:
             if char == 'w':
-                Y += 1
-            elif char == 'W':
-                Y += 10
-            elif char == 's':
                 Y -= 1
-            elif char == 'S':
+                if Y < SCROLL:
+                    SCROLL -= 1
+            elif char == 'W':
                 Y -= 10
+                if Y < SCROLL:
+                    SCROLL -= 10
+            elif char == 's':
+                Y += 1
+                if Y >= MAX_HEIGHT-SCROLL:
+                    SCROLL += 1
+
+            elif char == 'S':
+                Y += 10
+                if Y >= MAX_HEIGHT-SCROLL:
+                    SCROLL += 10
             elif char == 'd':
                 stage(Y)
             elif char == 'a':
@@ -163,8 +190,21 @@ while True:
             elif char == 'p':
                 with console.capture() as capture:
                     console.print(syntax)
+            elif char == 'c':
+                SHOW_CHANGES = not SHOW_CHANGES
+
+            elif char == 'f':
+                SCROLL += 1
+                Y -= 1
+            elif char == 'e':
+                SCROLL -= 1
+                Y += 1
+            SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
 
             Y = clamp(Y, 0, len(FILES)-1)
+            # if Y > MAX_HEIGHT:
+            #     SCROLL = Y - MAX_HEIGHT + 1
+
         get_status()
     else:
         get_status()

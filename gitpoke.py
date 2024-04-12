@@ -68,13 +68,10 @@ def get_status(scroll_to_bottom=False):
                 'path' : Path(line[3:].strip('"')),
                 'modification_time' : Path(line[3:].strip('"')).stat().st_mtime if Path(line[3:].strip('"')).exists() else datetime.now().timestamp(),
                 }
-            for line in subprocess.run(['git', 'status', '--porcelain'], capture_output=True, text=True).stdout.split('\n') if line]
+            for line in subprocess.run(['git', 'status', '--porcelain'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split('\n') if line]
 
-    staged_files = [Path(line.strip('"')) for line in subprocess.run(['git', 'diff', '--name-only', '--cached'], capture_output=True, text=True).stdout.split('\n') if line]
-    # paths = [Path(line) for line in subprocess.run(['git', 'ls-files'], capture_output=True, text=True).stdout.split('\n')]
+    staged_files = [Path(line.strip('"')) for line in subprocess.run(['git', 'diff', '--name-only', '--cached'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split('\n') if line]
 
-    # modification_times = [e['path'].stat().st_mtime for e in files]
-    # modification_dates = [time.ctime(e) for e in modification_times]    # convert the modification time to a readable format
     FILES.sort(key=lambda x: x['modification_time'])
     if scroll_to_bottom:
         Y = len(FILES)-1
@@ -154,66 +151,86 @@ def stage(index):
         file = file.split(' -> ')[1]
 
     print('stage file', file)
-    subprocess.run(['git', 'add', file])
+    subprocess.run(['git', 'add', file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 def unstage(index):
     file = str(FILES[index]['path'])
     if ' -> ' in file:
         file = file.split(' -> ')[1]
     print('unstage file', file)
-    subprocess.run(['git', 'reset', file])
+    # sys.stdout = open(os.devnull, 'w')
+    subprocess.run(['git', 'reset', file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
+import tty
+import termios
 get_status(scroll_to_bottom=True)
-while True:
-    choice = input()
-    if choice == 'q':
-        os.system('cls' if os.name == 'nt' else 'clear')
-        exit()
-    elif choice:
-        for char in choice:
-            if char == 'w':
-                Y -= 1
-                if Y < SCROLL:
-                    SCROLL -= 1
-            elif char == 'W':
-                Y -= 10
-                if Y < SCROLL:
-                    SCROLL -= 10
-            elif char == 's':
-                Y += 1
-                if Y >= MAX_HEIGHT-SCROLL:
-                    SCROLL += 1
 
-            elif char == 'S':
-                Y += 10
-                if Y >= MAX_HEIGHT-SCROLL:
-                    SCROLL += 10
-            elif char == 'd':
-                stage(Y)
-            elif char == 'a':
-                unstage(Y)
-            elif char == 'p':
-                with console.capture() as capture:
-                    console.print(syntax)
-            elif char == 'c':
-                SHOW_CHANGES = not SHOW_CHANGES
 
-            elif char == 'f':
-                SCROLL += 1
-                Y -= 1
-            elif char == 'e':
+old_settings = termios.tcgetattr(sys.stdin)
+tty.setcbreak(sys.stdin.fileno())
+
+try:
+    while True:
+        key = sys.stdin.read(1)
+
+        # while True:
+        # choice = input()
+        # if key == 'q':
+        #     os.system('cls' if os.name == 'nt' else 'clear')
+        #     exit()
+        # elif key:
+        # for char in choice:
+        if key == 'w':
+            Y -= 1
+            if Y < SCROLL:
                 SCROLL -= 1
-                Y += 1
-            SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
+        elif key == 'W':
+            Y -= 10
+            if Y < SCROLL:
+                SCROLL -= 10
+        elif key == 's':
+            Y += 1
+            if Y >= MAX_HEIGHT-SCROLL:
+                SCROLL += 1
 
-            Y = clamp(Y, 0, len(FILES)-1)
-            # if Y > MAX_HEIGHT:
-            #     SCROLL = Y - MAX_HEIGHT + 1
+        elif key == 'S':
+            Y += 10
+            if Y >= MAX_HEIGHT-SCROLL:
+                SCROLL += 10
+        elif key == 'd':
+            stage(Y)
+        elif key == 'a':
+            unstage(Y)
+        elif key == 'p':
+            with console.capture() as capture:
+                console.print(syntax)
+        elif key == 'c':
+            SHOW_CHANGES = not SHOW_CHANGES
+
+        elif key == 'f':
+            SCROLL += 1
+            Y -= 1
+        elif key == 'e':
+            SCROLL -= 1
+            Y += 1
+        SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
+
+        Y = clamp(Y, 0, len(FILES)-1)
+        # if Y > MAX_HEIGHT:
+        #     SCROLL = Y - MAX_HEIGHT + 1
 
         get_status()
-    else:
-        get_status()
+        # else:
+        #     get_status()
+
+        # if key == ord('s'):
+        #     function_to_call()
+        if key == 27:  # ASCII code for escape key
+            break
+finally:
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
     # if choice == 'w':
     #     get_status()
 

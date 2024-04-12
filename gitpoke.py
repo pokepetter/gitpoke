@@ -37,8 +37,10 @@ if not (repo / '.git').exists():
 import subprocess
 status_map = {
     ' M' : '[bright_yellow]~[/]',
+    'M ' : '[bright_yellow]~[/]',
     'R ' : '[bright_yellow]R[/]',
     '??' : '[bright_green]+[/]',
+    'A ' : '[bright_green]+[/]',
     ' D' : '[bright_red]-[/]',
     }
 
@@ -58,9 +60,9 @@ def print_at(text, y=0, x=0):
     # sys.stdout.write(f'\33[%d;%dH%s" "$Y" "$X" "$CHAR")
 
 
-def get_status():
+def get_status(scroll_to_bottom=False):
     os.system('cls' if os.name == 'nt' else 'clear')
-    global FILES
+    global FILES, SCROLL, Y
     FILES = [{
                 'status' : line[:2],
                 'path' : Path(line[3:].strip('"')),
@@ -74,6 +76,10 @@ def get_status():
     # modification_times = [e['path'].stat().st_mtime for e in files]
     # modification_dates = [time.ctime(e) for e in modification_times]    # convert the modification time to a readable format
     FILES.sort(key=lambda x: x['modification_time'])
+    if scroll_to_bottom:
+        Y = len(FILES)-1
+        SCROLL = Y-MAX_HEIGHT+1
+
     file_view = ''
 
     scroll_indicator = ' ' * ((MAX_WIDTH // 2)+6-2) + '...\n'
@@ -100,7 +106,7 @@ def get_status():
         if len(path_as_str) > MAX_WIDTH:
             path_as_str = '...' + path_as_str[-(MAX_WIDTH-3):]
 
-        file_view += f'{i+SCROLL} {cursor}{staged_status} {status} {path_as_str : <{MAX_WIDTH}} [grey50]{days}d[/]\n'
+        file_view += f'{i+SCROLL} {cursor}{staged_status} {status} {path_as_str : <{MAX_WIDTH}} [grey50]{days}d[default on default]\n'
 
     file_view += scroll_indicator if SCROLL+MAX_HEIGHT < len(FILES) else '\n'
     file_view += '\n[grey50 on black]\[w] up    \[s] down    \[d] stage    \[a] unstage    \[q] quit    \n'
@@ -158,7 +164,7 @@ def unstage(index):
     subprocess.run(['git', 'reset', file])
 
 
-get_status()
+get_status(scroll_to_bottom=True)
 while True:
     choice = input()
     if choice == 'q':
@@ -212,3 +218,7 @@ while True:
     #     get_status()
 
 # print(result)
+
+
+if __name__ == '__main__':
+    main()

@@ -42,6 +42,7 @@ status_map = {
     '??' : '[bright_green]+[/]',
     'A ' : '[bright_green]+[/]',
     ' D' : '[bright_red]-[/]',
+    'D ' : '[bright_red]-[/]',
     }
 
 
@@ -59,6 +60,8 @@ def print_at(text, y=0, x=0):
     # sys.stdout.flush()
     # sys.stdout.write(f'\33[%d;%dH%s" "$Y" "$X" "$CHAR")
 
+def run_silent(args):
+    return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode()
 
 def get_status(scroll_to_bottom=False):
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -68,9 +71,9 @@ def get_status(scroll_to_bottom=False):
                 'path' : Path(line[3:].strip('"')),
                 'modification_time' : Path(line[3:].strip('"')).stat().st_mtime if Path(line[3:].strip('"')).exists() else datetime.now().timestamp(),
                 }
-            for line in subprocess.run(['git', 'status', '--porcelain'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split('\n') if line]
+            for line in run_silent(['git', 'status', '--porcelain']).split('\n') if line]
 
-    staged_files = [Path(line.strip('"')) for line in subprocess.run(['git', 'diff', '--name-only', '--cached'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split('\n') if line]
+    staged_files = [Path(line.strip('"')) for line in run_silent(['git', 'diff', '--name-only', '--cached']).split('\n') if line]
 
     FILES.sort(key=lambda x: x['modification_time'])
     if scroll_to_bottom:
@@ -109,8 +112,8 @@ def get_status(scroll_to_bottom=False):
     file_view += '\n[grey50 on black]\[w] up    \[s] down    \[d] stage    \[a] unstage    \[q] quit    \n'
 
     # layout['file_view'].update(file_view)
-    print_at(f'| Y:{Y}/{len(FILES)-1} scroll:{SCROLL}\n', y=0)
-    print_at(file_view, y=2)
+    print_at(f'| Y:{Y}/{len(FILES)-1} scroll:{SCROLL}\n', y=2)
+    print_at(file_view, y=3)
 
 
     current_file = FILES[Y]['path']
@@ -128,7 +131,7 @@ def get_status(scroll_to_bottom=False):
         # print_at(diff, y=2, x=50)
         # print_at('HWELLO WORLD', y=2, x=50)
         for i, line in enumerate(diff.split('\n')[:40]):
-            print_at(line, y=i+1, x=80)
+            print_at(line, y=i+3, x=80)
 
     # # layout['changes'].update('changes:\n' + str(path) + file_changes)
     # # console.print(Syntax(file_changes, 'python'))
@@ -150,20 +153,22 @@ def stage(index):
     if ' -> ' in file:
         file = file.split(' -> ')[1]
 
-    print('stage file', file)
-    subprocess.run(['git', 'add', file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = run_silent(['git', 'add', file])
+    print_at(f'stage file, {file}: {result}', y=0, x=50)
 
 def unstage(index):
     file = str(FILES[index]['path'])
     if ' -> ' in file:
         file = file.split(' -> ')[1]
-    print('unstage file', file)
+    # print('unstage file', file)
     # sys.stdout = open(os.devnull, 'w')
-    subprocess.run(['git', 'reset', file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = run_silent(['git', 'reset', file])
+    print_at(f'unstage file, {file}: {result}', y=0, x=50)
 
 
 import tty
 import termios
+os.system('cls' if os.name == 'nt' else 'clear')
 get_status(scroll_to_bottom=True)
 
 

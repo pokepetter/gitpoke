@@ -122,7 +122,7 @@ def get_status(scroll_to_bottom=False):
             file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
 
         file_changes = [l[:60] for l in file_changes.split('\n') if l.startswith('+') or l.startswith('-')]
-        diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green] + [/] ').replace('\n-','\n[black on bright_red] - [/] ')
+        diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green]').replace('\n-','\n[black on bright_red]')
         # layout['changes'].update(diff))
 
         # print_at(diff, y=2, x=50)

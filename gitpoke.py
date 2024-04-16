@@ -1,3 +1,6 @@
+import tuilib
+from tuilib import run, print_at
+
 from pathlib import Path
 import os.path
 import time
@@ -42,40 +45,34 @@ status_map = {
     '??' : '[bright_green]+[/]',
     'A ' : '[bright_green]+[/]',
     ' D' : '[bright_red]-[/]',
+    'D ' : '[bright_red]-[/]',
     }
 
 
 def clamp(value, floor, ceiling):
     return max(min(value, ceiling), floor)
 
-def print_at(text, y=0, x=0):
-    sys.stdout.write("\033[{};{}H".format(y, x))
-    sys.stdout.write("\033[K")
-    print(text)
-    sys.stdout.flush()
-    # sys.stdout.write(f'\033[{y};{x}H{text}')
-    # sys.stdout.write('\033[K')
-    # # sys.stdout.write(text)
-    # sys.stdout.flush()
-    # sys.stdout.write(f'\33[%d;%dH%s" "$Y" "$X" "$CHAR")
+
+def run_silent(args):
+    return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode()
 
 
-def get_status(scroll_to_bottom=False):
-    os.system('cls' if os.name == 'nt' else 'clear')
+def render(scroll_to_bottom=False):
+    tuilib.clear()
     global FILES, SCROLL, Y
     FILES = [{
                 'status' : line[:2],
                 'path' : Path(line[3:].strip('"')),
                 'modification_time' : Path(line[3:].strip('"')).stat().st_mtime if Path(line[3:].strip('"')).exists() else datetime.now().timestamp(),
                 }
-            for line in subprocess.run(['git', 'status', '--porcelain'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split('\n') if line]
+            for line in run_silent(['git', 'status', '--porcelain']).split('\n') if line]
 
-    staged_files = [Path(line.strip('"')) for line in subprocess.run(['git', 'diff', '--name-only', '--cached'], stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.decode().split('\n') if line]
+    staged_files = [Path(line.strip('"')) for line in run_silent(['git', 'diff', '--name-only', '--cached']).split('\n') if line]
 
     FILES.sort(key=lambda x: x['modification_time'])
     if scroll_to_bottom:
         Y = len(FILES)-1
-        SCROLL = Y-MAX_HEIGHT+1
+        SCROLL = max(Y-MAX_HEIGHT+1, 0)
 
     file_view = ''
 
@@ -106,12 +103,11 @@ def get_status(scroll_to_bottom=False):
         file_view += f'{i+SCROLL} {cursor}{staged_status} {status} {path_as_str : <{MAX_WIDTH}} [grey50]{days}d[default on default]\n'
 
     file_view += scroll_indicator if SCROLL+MAX_HEIGHT < len(FILES) else '\n'
-    file_view += '\n[grey50 on black]\[w] up    \[s] down    \[d] stage    \[a] unstage    \[q] quit    \n'
+    file_view += '\n[grey50 on black]\[w] up    \[s] down    \[d] stage    \[a] unstage    \[Q] quit    \n'
 
     # layout['file_view'].update(file_view)
-    print_at(f'| Y:{Y}/{len(FILES)-1} scroll:{SCROLL}\n', y=0)
-    print_at(file_view, y=2)
-
+    print_at(f'| Y:{Y}/{len(FILES)-1} scroll:{SCROLL}\n', y=2)
+    print_at(file_view, y=3)
 
     current_file = FILES[Y]['path']
 
@@ -128,7 +124,7 @@ def get_status(scroll_to_bottom=False):
         # print_at(diff, y=2, x=50)
         # print_at('HWELLO WORLD', y=2, x=50)
         for i, line in enumerate(diff.split('\n')[:40]):
-            print_at(line, y=i+1, x=80)
+            print_at(line, y=i+3, x=80)
 
     # # layout['changes'].update('changes:\n' + str(path) + file_changes)
     # # console.print(Syntax(file_changes, 'python'))
@@ -144,98 +140,74 @@ def get_status(scroll_to_bottom=False):
 
     # print(layout)
 
-
 def stage(index):
     file = str(FILES[index]['path'])
     if ' -> ' in file:
         file = file.split(' -> ')[1]
 
-    print('stage file', file)
-    subprocess.run(['git', 'add', file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = run_silent(['git', 'add', file])
+    print_at(f'stage file, {file}: {result}', y=0, x=50)
+
 
 def unstage(index):
     file = str(FILES[index]['path'])
     if ' -> ' in file:
         file = file.split(' -> ')[1]
-    print('unstage file', file)
-    # sys.stdout = open(os.devnull, 'w')
-    subprocess.run(['git', 'reset', file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    result = run_silent(['git', 'reset', file])
+    print_at(f'unstage file, {file}: {result}', y=0, x=50)
 
 
-import tty
-import termios
-get_status(scroll_to_bottom=True)
+def __input__(key):
+    global Y, SCROLL, MAX_HEIGHT, SHOW_CHANGES
 
-
-old_settings = termios.tcgetattr(sys.stdin)
-tty.setcbreak(sys.stdin.fileno())
-
-try:
-    while True:
-        key = sys.stdin.read(1)
-
-        # while True:
-        # choice = input()
-        # if key == 'q':
-        #     os.system('cls' if os.name == 'nt' else 'clear')
-        #     exit()
-        # elif key:
-        # for char in choice:
-        if key == 'w':
-            Y -= 1
-            if Y < SCROLL:
-                SCROLL -= 1
-        elif key == 'W':
-            Y -= 10
-            if Y < SCROLL:
-                SCROLL -= 10
-        elif key == 's':
-            Y += 1
-            if Y >= MAX_HEIGHT-SCROLL:
-                SCROLL += 1
-
-        elif key == 'S':
-            Y += 10
-            if Y >= MAX_HEIGHT-SCROLL:
-                SCROLL += 10
-        elif key == 'd':
-            stage(Y)
-        elif key == 'a':
-            unstage(Y)
-        elif key == 'p':
-            with console.capture() as capture:
-                console.print(syntax)
-        elif key == 'c':
-            SHOW_CHANGES = not SHOW_CHANGES
-
-        elif key == 'f':
-            SCROLL += 1
-            Y -= 1
-        elif key == 'e':
+    if key == 'w':
+        Y -= 1
+        if Y < SCROLL:
             SCROLL -= 1
-            Y += 1
-        SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
+    elif key == 'W':
+        Y -= 10
+        if Y < SCROLL:
+            SCROLL -= 10
+    elif key == 's':
+        Y += 1
+        if Y >= MAX_HEIGHT-SCROLL:
+            SCROLL += 1
 
-        Y = clamp(Y, 0, len(FILES)-1)
-        # if Y > MAX_HEIGHT:
-        #     SCROLL = Y - MAX_HEIGHT + 1
+    elif key == 'S':
+        Y += 10
+        if Y >= MAX_HEIGHT-SCROLL:
+            SCROLL += 10
+    elif key == 'd':
+        stage(Y)
+    elif key == 'a':
+        unstage(Y)
+    elif key == 'p':
+        with console.capture() as capture:
+            console.print(syntax)
+    elif key == 'c':
+        SHOW_CHANGES = not SHOW_CHANGES
 
-        get_status()
-        # else:
-        #     get_status()
+    elif key == 'f':
+        SCROLL += 1
+        Y -= 1
+    elif key == 'e':
+        SCROLL -= 1
+        Y += 1
+    SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
 
-        # if key == ord('s'):
-        #     function_to_call()
-        if key == 27:  # ASCII code for escape key
-            break
-finally:
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+    Y = clamp(Y, 0, len(FILES)-1)
+    # if Y > MAX_HEIGHT:
+    #     SCROLL = Y - MAX_HEIGHT + 1
 
-    # if choice == 'w':
-    #     get_status()
+    render()
 
-# print(result)
+    if key == 'Q':  # ASCII code for escape key
+        exit()
+
+def start():
+    render(scroll_to_bottom=True)
 
 
 if __name__ == '__main__':
-    main()
+    tuilib.run(start_function=start)

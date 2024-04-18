@@ -113,7 +113,15 @@ def render(scroll_to_bottom=False):
 
     if SHOW_CHANGES:
         if current_file not in staged_files:
-            file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
+            print_at(f'----{FILES[Y]["status"]}', 0,0)
+            if FILES[Y]['status'] in ('??', 'A '):
+                # try:
+                with Path(current_file).open('r') as file:
+                    file_changes = file.read()
+                # except:
+                #     file_changes = "Couldn't read file"
+            else:
+                file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
         else:
             file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
 
@@ -203,7 +211,7 @@ def __input__(key):
     render()
 
     if key == 'Q':  # ASCII code for escape key
-        exit()
+        tuilib.quit()
 
 def start():
     render(scroll_to_bottom=True)

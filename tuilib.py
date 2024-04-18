@@ -16,11 +16,14 @@ def print_at(text, y=0, x=0):
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+old_settings = None
 
 def run(start_function=None):
+    global old_settings
     os.system('cls' if os.name == 'nt' else 'clear')
-
     old_settings = termios.tcgetattr(sys.stdin)
+
+    # try:
     tty.setcbreak(sys.stdin.fileno())
     if start_function:
         start_function()
@@ -29,6 +32,16 @@ def run(start_function=None):
         key = sys.stdin.read(1)
         if hasattr(__main__, '__input__'):
             __main__.__input__(key)
+    # finally:
+    #     # Restore original terminal settings
+    #     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+
+def quit():
+    clear()
+    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+    os.system('stty echo')
+    exit()
+
 
 
 if __name__ == '__main__':

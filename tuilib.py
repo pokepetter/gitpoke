@@ -30,16 +30,35 @@ def run(start_function=None):
 
     while True:
         key = sys.stdin.read(1)
+        hex_int = None
+        try:
+            # as_hex = int(key, 16)
+            # as_hex = bytes.fromhex(key).decode('utf-8')
+            hex_int = ord(hex_str[2:].decode('unicode_escape'))
+        except:
+            pass
+        clear()
+        print(hex_int)
+        if hex_int == 1:       key = 'control+a'
+        elif key == '\x02':     key = 'control+b'
+        elif key == '\x05':     key = 'control+e'
+        elif key == '\x7f':     key = 'backspace'
+        elif key == '\x08':     key = 'control+backspace'
+        elif key == '\x12':     key = 'control+r'
+        elif key == '\x17':     key = 'control+w'
+        if key == '\x1b':
+            quit()
+
         if hasattr(__main__, '__input__'):
             __main__.__input__(key)
     # finally:
     #     # Restore original terminal settings
     #     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
 
-def quit():
-    clear()
+def quit(message=''):
     termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
     os.system('stty echo')
+    print(message)
     exit()
 
 

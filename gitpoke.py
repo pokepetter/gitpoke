@@ -69,6 +69,10 @@ def render(scroll_to_bottom=False):
 
     staged_files = [Path(line.strip('"')) for line in run_silent(['git', 'diff', '--name-only', '--cached']).split('\n') if line]
 
+    if not FILES:
+        tuilib.quit(message='No changes')
+
+
     FILES.sort(key=lambda x: x['modification_time'])
     if scroll_to_bottom:
         Y = len(FILES)-1
@@ -211,6 +215,7 @@ def __input__(key):
     render()
 
     if key == 'Q':  # ASCII code for escape key
+        tuilib.clear()
         tuilib.quit()
 
 def start():

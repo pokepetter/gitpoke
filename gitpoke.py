@@ -116,27 +116,30 @@ def render(scroll_to_bottom=False):
     current_file = FILES[Y]['path']
 
     if SHOW_CHANGES:
-        if current_file not in staged_files:
-            print_at(f'----{FILES[Y]["status"]}', 0,0)
-            if FILES[Y]['status'] in ('??', 'A '):
-                # try:
-                with Path(current_file).open('r') as file:
-                    file_changes = file.read()
-                # except:
-                #     file_changes = "Couldn't read file"
+        try:
+            if current_file not in staged_files:
+                print_at(f'----{FILES[Y]["status"]}', 0,0)
+                if FILES[Y]['status'] in ('??', 'A '):
+                    # try:
+                    with Path(current_file).open('r') as file:
+                        file_changes = file.read()
+                    # except:
+                    #     file_changes = "Couldn't read file"
+                else:
+                    file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
             else:
-                file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
-        else:
-            file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
+                file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
 
-        file_changes = [l[:60] for l in file_changes.split('\n') if l.startswith('+') or l.startswith('-')]
-        diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green]').replace('\n-','\n[black on bright_red]')
-        # layout['changes'].update(diff))
+            file_changes = [l[:60] for l in file_changes.split('\n') if l.startswith('+') or l.startswith('-')]
+            diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green]').replace('\n-','\n[black on bright_red]')
+            # layout['changes'].update(diff))
 
-        # print_at(diff, y=2, x=50)
-        # print_at('HWELLO WORLD', y=2, x=50)
-        for i, line in enumerate(diff.split('\n')[:40]):
-            print_at(line, y=i+3, x=80)
+            # print_at(diff, y=2, x=50)
+            # print_at('HWELLO WORLD', y=2, x=50)
+            for i, line in enumerate(diff.split('\n')[:40]):
+                print_at(line, y=i+3, x=80)
+        except:
+            print_at('Not a source file.', y=i+3, x=80)
 
     # # layout['changes'].update('changes:\n' + str(path) + file_changes)
     # # console.print(Syntax(file_changes, 'python'))

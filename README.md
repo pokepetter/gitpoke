@@ -1,2 +1,2 @@
 # gitpoke
-![Banner](/docs/made_with_ursina.jpg)
+![Screenshot](/gitpoke_screenshot.webp)

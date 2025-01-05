@@ -24,6 +24,14 @@ MAX_WIDTH = 50
 MAX_HEIGHT = 30
 CURSOR_Y = Y
 
+class States:
+    file_view = 0
+    commit_view = 1
+    log_view = 2
+
+STATE = States.file_view
+COMMIT_MESSAGE = ''
+
 console = Console()
 layout = Layout()
 layout.split_row(
@@ -59,6 +67,13 @@ def run_silent(args):
 
 def render(scroll_to_bottom=False):
     tuilib.clear()
+
+    if STATE == States.file_view:       render_file_view(scroll_to_bottom)
+    if STATE == States.commit_view:     render_commit_view()
+    if STATE == States.log_view:        render_log_view()
+
+
+def render_file_view(scroll_to_bottom=False):
     global FILES, SCROLL, Y
     FILES = [{
                 'status' : line[:2],
@@ -114,46 +129,48 @@ def render(scroll_to_bottom=False):
     print_at(file_view, y=3)
 
     current_file = FILES[Y]['path']
-
     if SHOW_CHANGES:
-        try:
-            if current_file not in staged_files:
-                print_at(f'----{FILES[Y]["status"]}', 0,0)
-                if FILES[Y]['status'] in ('??', 'A '):
-                    # try:
-                    with Path(current_file).open('r') as file:
-                        file_changes = file.read()
-                    # except:
-                    #     file_changes = "Couldn't read file"
-                else:
-                    file_changes = subprocess.run(['git', '--no-pager', 'diff', current_file], capture_output=True, text=True).stdout
-            else:
-                file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', current_file], capture_output=True, text=True).stdout
-
-            file_changes = [l[:60] for l in file_changes.split('\n') if l.startswith('+') or l.startswith('-')]
-            diff = 'changes:\n' + str(current_file) + '\n'.join(file_changes).replace('\n+','\n[black on bright_green]').replace('\n-','\n[black on bright_red]')
-            # layout['changes'].update(diff))
-
-            # print_at(diff, y=2, x=50)
-            # print_at('HWELLO WORLD', y=2, x=50)
-            for i, line in enumerate(diff.split('\n')[:40]):
-                print_at(line, y=i+3, x=80)
-        except:
-            print_at('Not a source file.', y=i+3, x=80)
-
-    # # layout['changes'].update('changes:\n' + str(path) + file_changes)
-    # # console.print(Syntax(file_changes, 'python'))
-    # with console.capture() as capture:
-    #     console.print(syntax)
-    #
-    # file_changes = capture.get()
-    # # ansi_escape = re.compile(r'\x1b\[(\d+)(;\d+)?m')
-    # # # Replace ANSI escape codes with Rich style formatting
-    # # file_changes = ansi_escape.sub(lambda m: f"[{'bold ' if m.group(1) == '1' else ''}{'red' if m.group(1) == '31' else ''}]", file_changes)
-    # layout['changes'].update(file_changes)
+        changes = get_changes(Path(current_file), staged_files)
+        for i, line in enumerate(changes.split('\n')[:tuilib.get_terminal_height()]):
+            print_at(line, y=i+3, x=64)
 
 
-    # print(layout)
+def render_commit_view():
+    print_at(y=0, text='|| Enter commit message ||')
+    print_at(y=1, text=COMMIT_MESSAGE)
+
+
+def render_log_view():
+    print_at('Log:')
+    # "git log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)' -20"
+    log_text = subprocess.run(['git', 'log', '--graph', '--abbrev-commit', '--decorate', "--format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'", '-10'], capture_output=True, text=True).stdout
+    print_at(y=1, text=log_text)
+
+
+def get_changes(path, staged_files):
+    if not Path(path).is_file():
+        return 'Not a file'
+
+    if path not in staged_files:
+        print_at(f'----{FILES[Y]["status"]}', 0,0)
+        if FILES[Y]['status'] in ('??', 'A '):
+            with Path(path).open('r') as file:
+                return file.read()
+        else:
+            file_changes = subprocess.run(['git', '--no-pager', 'diff', path], capture_output=True, text=True).stdout
+    else:
+        file_changes = subprocess.run(['git', '--no-pager', 'diff', '--staged', path], capture_output=True, text=True).stdout
+
+    file_changes = [{'index':i, 'line_content':l, 'added':l.startswith('+')} for i, l in enumerate(file_changes.split('\n')) if l.startswith('+') or l.startswith('-')]
+
+    diff = 'changes:\n' + str(path)
+    for change in file_changes:
+        i, line_content, added = change.values()
+        prefix = '[black on bright_green]' if added else '[black on bright_red]'
+        diff += f'{prefix}{line_content[1:tuilib.get_terminal_width()-MAX_WIDTH-15]}\n'
+    
+    return diff
+
 
 def stage(index):
     file = str(FILES[index]['path'])
@@ -174,50 +191,72 @@ def unstage(index):
 
 
 def __input__(key):
-    global Y, SCROLL, MAX_HEIGHT, SHOW_CHANGES
+    global Y, SCROLL, SHOW_CHANGES, STATE, COMMIT_MESSAGE
 
-    if key == 'w':
-        Y -= 1
-        if Y < SCROLL:
-            SCROLL -= 1
-    elif key == 'W':
-        Y -= 10
-        if Y < SCROLL:
-            SCROLL -= 10
-    elif key == 's':
-        Y += 1
-        if Y >= MAX_HEIGHT-SCROLL:
+    if STATE == States.commit_view:
+        if key == 'escape':
+            STATE = States.file_view
+
+        elif key == 'backspace' and len(COMMIT_MESSAGE) > 0:
+            COMMIT_MESSAGE = COMMIT_MESSAGE[:-1]
+            
+        elif key == 'control+backspace' and ' ' in COMMIT_MESSAGE:
+            COMMIT_MESSAGE = ' '.join(COMMIT_MESSAGE.split(' ')[:-1])
+
+        elif len(key) == 1:
+            COMMIT_MESSAGE += key
+        
+        render()
+        return
+        
+    if key == '1':
+        STATE = States.file_view
+    elif key == '2':
+        STATE = States.commit_view
+    elif key == '3':
+        STATE = States.log_view
+
+
+    if STATE == States.file_view:
+        if key == 'w':
+            Y -= 1
+            if Y < SCROLL:
+                SCROLL -= 1
+        elif key == 'W':
+            Y -= 10
+            if Y < SCROLL:
+                SCROLL -= 10
+        elif key == 's':
+            Y += 1
+            if Y >= MAX_HEIGHT-SCROLL:
+                SCROLL += 1
+
+        elif key == 'S':
+            Y += 10
+            if Y >= MAX_HEIGHT-SCROLL:
+                SCROLL += 10
+        elif key == 'd':
+            stage(Y)
+        elif key == 'a':
+            unstage(Y)
+
+        elif key == 'c':
+            SHOW_CHANGES = not SHOW_CHANGES
+
+        elif key == 'f':
             SCROLL += 1
+            Y -= 1
+        elif key == 'e':
+            SCROLL -= 1
+            Y += 1
 
-    elif key == 'S':
-        Y += 10
-        if Y >= MAX_HEIGHT-SCROLL:
-            SCROLL += 10
-    elif key == 'd':
-        stage(Y)
-    elif key == 'a':
-        unstage(Y)
-    elif key == 'p':
-        with console.capture() as capture:
-            console.print(syntax)
-    elif key == 'c':
-        SHOW_CHANGES = not SHOW_CHANGES
-
-    elif key == 'f':
-        SCROLL += 1
-        Y -= 1
-    elif key == 'e':
-        SCROLL -= 1
-        Y += 1
-    SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
-
-    Y = clamp(Y, 0, len(FILES)-1)
-    # if Y > MAX_HEIGHT:
-    #     SCROLL = Y - MAX_HEIGHT + 1
+        SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
+        Y = clamp(Y, 0, len(FILES)-1)
 
     render()
+    print_at(key, 0, 20)
 
-    if key == 'Q':  # ASCII code for escape key
+    if key == 'Q':
         tuilib.clear()
         tuilib.quit()
 

@@ -2,6 +2,7 @@ import tty
 import termios
 import os
 import sys
+import shutil
 from rich import print as print_rich
 import __main__
 
@@ -39,14 +40,15 @@ def run(start_function=None):
             pass
         clear()
         print(hex_int)
-        if hex_int == 1:       key = 'control+a'
+        if hex_int == 1:        key = 'control+a'
         elif key == '\x02':     key = 'control+b'
         elif key == '\x05':     key = 'control+e'
         elif key == '\x7f':     key = 'backspace'
         elif key == '\x08':     key = 'control+backspace'
         elif key == '\x12':     key = 'control+r'
         elif key == '\x17':     key = 'control+w'
-        if key == '\x1b':
+        elif ord(key) == 27:    key = 'escape'
+        elif key == '\x1b':
             quit()
 
         if hasattr(__main__, '__input__'):
@@ -62,13 +64,23 @@ def quit(message=''):
     exit()
 
 
+def get_terminal_height():
+    return shutil.get_terminal_size().lines
+
+def get_terminal_width():
+    return shutil.get_terminal_size().columns
+
+
 
 if __name__ == '__main__':
 
     def __input__(key):
-        print_at(f'key: {key}', 4, 2)
+        print_at(f'key: {key}', 5, 2)
 
     def start():
         print_at('TEST', 2, 2)
+        print_at(f'terminal height: {get_terminal_height()}', 3, 0)
+        print_at(f'terminal width: {get_terminal_width()}', 4, 0)
+    # print('hi')
 
     run(start)

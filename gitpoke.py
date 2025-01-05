@@ -67,11 +67,21 @@ def run_silent(args):
 
 def render(scroll_to_bottom=False):
     tuilib.clear()
+    files_tab = ' FILES\[F] '
+    log_tab = ' LOG\[L] '
+    commit_tab = ' COMMIT\[C] '
 
-    if STATE == States.file_view:       render_file_view(scroll_to_bottom)
-    if STATE == States.commit_view:     render_commit_view()
-    if STATE == States.log_view:        render_log_view()
+    if STATE == States.file_view:
+        render_file_view(scroll_to_bottom)
+        files_tab = '[white on blue]' + files_tab + '[grey50 on black]'
+    if STATE == States.log_view:
+        render_log_view()
+        log_tab = '[white on blue]' + log_tab + '[grey50 on black]'
+    if STATE == States.commit_view:
+        render_commit_view()
+        commit_tab = '[white on blue]' + commit_tab + '[default on default not bold]'
 
+    print_at('[grey50 on black]' + f'|'.join((files_tab, log_tab, commit_tab)), y=1)
 
 def render_file_view(scroll_to_bottom=False):
     global FILES, SCROLL, Y
@@ -209,11 +219,11 @@ def __input__(key):
         render()
         return
         
-    if key == '1':
+    if key == 'F':
         STATE = States.file_view
-    elif key == '2':
+    elif key == 'C':
         STATE = States.commit_view
-    elif key == '3':
+    elif key == 'L':
         STATE = States.log_view
 
 
@@ -254,7 +264,7 @@ def __input__(key):
         Y = clamp(Y, 0, len(FILES)-1)
 
     render()
-    print_at(key, 0, 20)
+    # print_at(key, 0, 20)
 
     if key == 'Q':
         tuilib.clear()

@@ -22,7 +22,9 @@ Y = 0
 SCROLL = 0
 MAX_WIDTH = 50
 MAX_HEIGHT = 30
-CURSOR_Y = Y
+LOG_Y = 0
+INSPECT_COMMIT = False
+FILE_LIST_Y = 0
 
 class States:
     file_view = 0
@@ -153,8 +155,47 @@ def render_commit_view():
 def render_log_view():
     print_at('Log:')
     # "git log --graph --abbrev-commit --decorate --format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)' -20"
-    log_text = subprocess.run(['git', 'log', '--graph', '--abbrev-commit', '--decorate', "--format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'", '-10'], capture_output=True, text=True).stdout
-    print_at(y=1, text=log_text)
+    # log_text = subprocess.run(['git', 'log', '--graph', '--abbrev-commit', '--decorate', "--format=format:'%C(bold blue)%h%C(reset) - %C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)'", '-10'], capture_output=True, text=True).stdout
+    # git log --pretty=format:"%h%x09%an%x09%ad%x09%s"
+
+    log_lines =subprocess.check_output(['git', 'log', '--all', '--format=format:%C(bold blue)%h%C(reset)%C(bold green)(%ar)%C(reset) %C(white)%s%C(reset) %C(dim white)- %an%C(reset)%C(auto)%d%C(reset)', '-30'], text=True).split('\n')
+    for y, line in enumerate(log_lines):
+        # line = f'{y}:{line}'
+        if y == LOG_Y:
+            line = f'[white on blue]{line}[default on default not bold]'
+        print_at(y=2+y, text=line)
+        
+    # if INSPECT_COMMIT:
+    # git diff-tree --no-commit-id --name-only -r $(git rev-parse HEAD~3)
+    try:
+        # commit_hash = subprocess.check_output(
+        #     ["git", "rev-parse", f"HEAD~{LOG_Y+1}"], 
+        #     text=True
+        # ).strip()
+        commit_hash  = log_lines[LOG_Y].split('(',1)[0]
+        files = subprocess.check_output(
+            ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", commit_hash], 
+            text=True
+        ).strip().split("\n")
+    except subprocess.CalledProcessError as e:
+        print(f"Error running git command: {e}")
+        files = []
+    
+    files = [e.split('/')[-1] for e in files]
+    # files = [f'[default on default]{e}[white on green]' for e in files]
+    print_at(y=2, x=100, text=f'[bold]    Files changed:    ')
+    for _ in range(len(files), 30):
+        files.append('')
+
+    for _y, file_name in enumerate(files):
+        color = '[default on deault]'
+        if INSPECT_COMMIT and _y == FILE_LIST_Y:
+            color = '[white on blue]'
+        print_at(y=3+_y, x=100, text=f'    {color}{file_name:<40} ')
+
+    # print_at(y=1, text=log_text)
+    print_at(y=33, text=f'\n[grey50 on black]\[w] up    \[s] down    \LOG_Y:{LOG_Y}{INSPECT_COMMIT}    \[Q] quit    \n')
+
 
 
 def get_changes(path, staged_files):
@@ -201,7 +242,7 @@ def unstage(index):
 
 
 def __input__(key):
-    global Y, SCROLL, SHOW_CHANGES, STATE, COMMIT_MESSAGE
+    global Y, SCROLL, SHOW_CHANGES, STATE, COMMIT_MESSAGE, LOG_Y, INSPECT_COMMIT, FILE_LIST_Y
 
     if STATE == States.commit_view:
         if key == 'escape':
@@ -224,6 +265,7 @@ def __input__(key):
     elif key == 'C':
         STATE = States.commit_view
     elif key == 'L':
+        # LOG_Y = 0
         STATE = States.log_view
 
 
@@ -263,6 +305,26 @@ def __input__(key):
         SCROLL = clamp(SCROLL, 0, len(FILES)-MAX_HEIGHT)
         Y = clamp(Y, 0, len(FILES)-1)
 
+    elif STATE == States.log_view:
+        if not INSPECT_COMMIT:
+            if key == 'w':
+                LOG_Y -= 1
+            if key == 's':
+                LOG_Y += 1
+            if key == 'd':
+                FILE_LIST_Y = 0
+                INSPECT_COMMIT = True
+        else:
+            if key == 'a':
+                FILE_LIST_Y = 0
+                INSPECT_COMMIT = False
+            if key == 'w':
+                FILE_LIST_Y -= 1
+            if key == 's':
+                FILE_LIST_Y += 1
+
+
+
     render()
     # print_at(key, 0, 20)
 
@@ -271,8 +333,11 @@ def __input__(key):
         tuilib.quit()
 
 def start():
+    global STATE, INSPECT_COMMIT
+    # STATE = States.log_view
+    # INSPECT_COMMIT = True
     render(scroll_to_bottom=True)
-
+    
 
 if __name__ == '__main__':
     tuilib.run(start_function=start)

@@ -73,14 +73,26 @@ def get_terminal_width():
 
 
 if __name__ == '__main__':
-
+    class Entity:
+        def __init__(self, **kwargs):
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+        ...
+    player = Entity(x=0, y=0)
     def __input__(key):
-        print_at(f'key: {key}', 5, 2)
+        if key == 'd': player.x += 1
+        if key == 'a': player.x -= 1
+        if key == 'w': player.y += 1
+        if key == 's': player.y -= 1
+
+        print_at('@', x=player.x, y=-player.y)
+        print_at(f'key: {key}| player_pos: {player.x}, {player.y}', 10, 0)
 
     def start():
+        ...
         print_at('TEST', 2, 2)
-        print_at(f'terminal height: {get_terminal_height()}', 3, 0)
-        print_at(f'terminal width: {get_terminal_width()}', 4, 0)
-    # print('hi')
+        # print_at(f'terminal height: {get_terminal_height()}', 3, 0)
+        # print_at(f'terminal width: {get_terminal_width()}', 4, 0)
 
+    # print('hi')
     run(start)

@@ -219,7 +219,7 @@ def get_changes(path, staged_files):
         i, line_content, added = change.values()
         prefix = '[black on bright_green]' if added else '[black on bright_red]'
         diff += f'{prefix}{line_content[1:tuilib.get_terminal_width()-MAX_WIDTH-15]}\n'
-    
+
     return diff
 
 
@@ -250,16 +250,16 @@ def __input__(key):
 
         elif key == 'backspace' and len(COMMIT_MESSAGE) > 0:
             COMMIT_MESSAGE = COMMIT_MESSAGE[:-1]
-            
+
         elif key == 'control+backspace' and ' ' in COMMIT_MESSAGE:
             COMMIT_MESSAGE = ' '.join(COMMIT_MESSAGE.split(' ')[:-1])
 
         elif len(key) == 1:
             COMMIT_MESSAGE += key
-        
+
         render()
         return
-        
+
     if key == 'F':
         STATE = States.file_view
     elif key == 'C':

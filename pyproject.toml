@@ -1,15 +1,19 @@
-[tool.poetry]
+[project]
 name = "gitpoke"
 version = "0.1.0"
 description = "Text user interface (TUI) for git."
-authors = ["pokepetter <pokepetter@gmail.com>"]
+authors = [
+    {name = "Petter Amland", email = "pokepetter@gmail.com"}
+]
+keywords = ["git", "TUI"]
 readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "rich>=13.7.1",
+]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-rich = "^13.7.1"
+[project.urls]
+Homepage = "https://github.com/pokepetter/gitpoke"
 
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools]
+py-modules = ["gitpoke"]
